@@ -31,9 +31,14 @@ import org.jetbrains.jps.model.java.JavaResourceRootType;
 class ResourceModuleContentRootCustomizer {
 
   public static void setupContentRoots(
-      @NotNull ModifiableRootModel model, @NotNull Collection<File> resources) {
-    for (ContentEntry contentEntry : model.getContentEntries()) {
-      model.removeContentEntry(contentEntry);
+      @NotNull ModifiableRootModel model,
+      @NotNull Collection<File> resources,
+      boolean keepExistingContentEntries) {
+    // For modules like workspace root, they should keep existing content entries
+    if (!keepExistingContentEntries) {
+      for (ContentEntry contentEntry : model.getContentEntries()) {
+        model.removeContentEntry(contentEntry);
+      }
     }
 
     for (File resource : resources) {

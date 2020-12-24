@@ -151,8 +151,14 @@ public class BlazeAndroidProjectStructureSyncer {
     for (AndroidResourceModule androidResourceModule :
         syncData.importResult.androidResourceModules) {
       targetToAndroidResourceModule.put(androidResourceModule.targetKey, androidResourceModule);
-      String moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
-      Module module = moduleEditor.createModule(moduleName, StdModuleTypes.JAVA);
+      Module module;
+      if (!BlazeAndroidWorkspaceImporter.WORKSPACE_RESOURCES_TARGET_KEY.equals(
+          androidResourceModule.targetKey)) {
+        String moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
+        module = moduleEditor.createModule(moduleName, StdModuleTypes.JAVA);
+      } else {
+        module = workspaceModule;
+      }
       TargetIdeInfo target = blazeProjectData.getTargetMap().get(androidResourceModule.targetKey);
       AndroidFacetModuleCustomizer.createAndroidFacet(
           module,
@@ -170,6 +176,8 @@ public class BlazeAndroidProjectStructureSyncer {
           blazeProjectData.getArtifactLocationDecoder();
 
       File manifest = null;
+      Module module;
+      String moduleName;
       if (!BlazeAndroidWorkspaceImporter.WORKSPACE_RESOURCES_TARGET_KEY.equals(
           androidResourceModule.targetKey)) {
         // Calculate manifest if this is not the workspace resource module
@@ -182,10 +190,13 @@ public class BlazeAndroidProjectStructureSyncer {
         manifest =
             manifestFileForAndroidTarget(
                 project, artifactLocationDecoder, androidIdeInfo, moduleDirectory);
+        moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
+        module = moduleEditor.findModule(moduleName);
+      } else {
+        module = workspaceModule;
+        moduleName = workspaceModule.getName();
       }
 
-      String moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
-      Module module = moduleEditor.findModule(moduleName);
       assert module != null;
       ModifiableRootModel modifiableRootModel = moduleEditor.editModule(module);
       LibraryTable libraryTable = ProjectLibraryTable.getInstance(project);
@@ -204,7 +215,9 @@ public class BlazeAndroidProjectStructureSyncer {
       // breaking dependencies within this resource module.
       newRoots.removeAll(existingRoots);
       existingRoots.addAll(newRoots);
-      ResourceModuleContentRootCustomizer.setupContentRoots(modifiableRootModel, newRoots);
+      // Do not remove  workspace module's existing content root
+      ResourceModuleContentRootCustomizer.setupContentRoots(
+          modifiableRootModel, newRoots, workspaceModule.equals(module));
 
       modifiableRootModel.addModuleOrderEntry(workspaceModule);
       ++totalOrderEntries;
@@ -320,12 +333,14 @@ public class BlazeAndroidProjectStructureSyncer {
       File manifestFile = null;
       String modulePackage;
       File moduleDirectory;
+      Module module;
       if (BlazeAndroidWorkspaceImporter.WORKSPACE_RESOURCES_TARGET_KEY.equals(
           androidResourceModule.targetKey)) {
         // For workspace resource module, give it a dummy package name, and set module
         // directory to workspace root. No manifest is attached to this module
         modulePackage = BlazeAndroidWorkspaceImporter.WORKSPACE_RESOURCES_MODULE_PACKAGE;
         moduleDirectory = workspaceRoot.directory();
+        module = workspaceModule;
       } else {
         TargetIdeInfo target =
             Preconditions.checkNotNull(
@@ -336,10 +351,10 @@ public class BlazeAndroidProjectStructureSyncer {
         manifestFile =
             manifestFileForAndroidTarget(
                 project, artifactLocationDecoder, androidIdeInfo, moduleDirectory);
+        String moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
+        module = moduleFinder.findModuleByName(moduleName);
       }
 
-      String moduleName = moduleNameForAndroidModule(androidResourceModule.targetKey);
-      Module module = moduleFinder.findModuleByName(moduleName);
       if (module == null) {
         log.warn("No module found for resource target: " + androidResourceModule.targetKey);
         continue;
